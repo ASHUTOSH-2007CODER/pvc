@@ -1,0 +1,213 @@
+{% extends "base.html" %}
+{% block title %}PVC Input{% endblock %}
+
+{% block content %}
+<div class="container mt-3">
+
+  <!-- Header -->
+  <div class="alert alert-primary d-flex justify-content-between align-items-center">
+    <div>
+      <h4 class="mb-0"><i class="fa-solid fa-calculator me-2"></i>PVC / LD Calculation</h4>
+      <small class="text-muted">Enter Basic details to compute PVC and LD.</small>
+    </div>
+    <span class="badge bg-success">Interactive Form</span>
+  </div>
+
+  <form method="POST" action="{{ url_for('calculate') }}">
+
+    <!-- Commercial + Item card -->
+    <div class="card border-primary shadow-sm mb-3">
+      <div class="card-header bg-primary text-white py-2">
+        <h6 class="mb-0"><i class="fa-solid fa-file-contract me-2"></i>Item & Commercial Details</h6>
+      </div>
+      <div class="card-body bg-light">
+
+        <!-- ITEM -->
+        <div class="mb-2">
+          <label class="form-label fw-semibold">
+            <i class="fa-solid fa-box-open me-1 text-warning"></i>Item
+          </label>
+          <select name="item" class="form-select form-select-sm" required>
+            {% for it in items %}
+            <option value="{{ it }}">{{ it }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <!-- BASIC -->
+        <div class="row">
+          <div class="col-md-4 mb-2">
+            <label class="form-label fw-semibold">
+              <i class="fa-solid fa-indian-rupee-sign me-1 text-success"></i>Basic Rate (₹/unit)
+            </label>
+            <input class="form-control form-control-sm" type="number" step="0.01" name="basicrate" required>
+          </div>
+          <div class="col-md-4 mb-2">
+            <label class="form-label fw-semibold">
+              <i class="fa-solid fa-cubes me-1 text-info"></i>Quantity
+            </label>
+            <input class="form-control form-control-sm" type="number" step="1" name="quantity" required>
+          </div>
+          <div class="col-md-4 mb-2">
+            <label class="form-label fw-semibold">
+              <i class="fa-solid fa-truck-moving me-1 text-secondary"></i>Freight (₹/unit)
+            </label>
+            <input class="form-control form-control-sm" type="number" step="0.01" name="freight">
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Dates card -->
+    <div class="card border-success shadow-sm mb-3">
+      <div class="card-header bg-success text-white py-2">
+        <h6 class="mb-0"><i class="fa-solid fa-calendar-days me-2"></i>Dates (PVC & DP)</h6>
+      </div>
+      <div class="card-body bg-light">
+
+        <div class="row">
+          <div class="col-md-3 mb-2">
+            <label class="form-label fw-semibold">PVC Base Date</label>
+            <input class="form-control form-control-sm" type="date" name="pvcbasedate">
+          </div>
+          <div class="col-md-3 mb-2">
+            <label class="form-label fw-semibold">Original DP</label>
+            <input class="form-control form-control-sm" type="date" name="origdp">
+          </div>
+
+          <div class="col-md-3 mb-2">
+            <label class="form-label fw-semibold d-block">Refixed DP</label>
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" id="chk_refixed" onchange="toggleRefixed()">
+              <label class="form-check-label" for="chk_refixed">
+                Refixed case
+              </label>
+            </div>
+            <input class="form-control form-control-sm" type="date" name="refixeddp"
+                   id="refixed_dp" placeholder="Refixed DP" style="display:none;">
+          </div>
+
+          <div class="col-md-3 mb-2">
+            <label class="form-label fw-semibold d-block">Extended DP (w/o LD)</label>
+            <div class="form-check mb-1">
+              <input class="form-check-input" type="checkbox" id="chk_extended" onchange="toggleExtended()">
+              <label class="form-check-label" for="chk_extended">
+                Extended DP without LD
+              </label>
+            </div>
+            <input class="form-control form-control-sm" type="date" name="extendeddp"
+                   id="extended_dp" placeholder="Extended DP (w/o LD)" style="display:none;">
+          </div>
+        </div>
+
+        <div class="row mt-2">
+          <div class="col-md-4 mb-2">
+            <label class="form-label fw-semibold">Call / Inspection Date</label>
+            <input class="form-control form-control-sm" type="date" name="caldate">
+          </div>
+          <div class="col-md-4 mb-2">
+            <label class="form-label fw-semibold">Supply Date</label>
+            <input class="form-control form-control-sm" type="date" name="supdate">
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Rate applied + Lower rate card -->
+    <div class="card border-warning shadow-sm mb-3">
+      <div class="card-header bg-warning text-dark py-2">
+        <h6 class="mb-0">
+          <i class="fa-solid fa-scale-balanced me-2"></i>Rate Applied & Lower Rate (if any)
+        </h6>
+      </div>
+      <div class="card-body bg-light">
+
+        <!-- RATE APPLIED -->
+        <div class="mb-2">
+          <label class="form-label fw-semibold">Rate Applied</label>
+          <select name="rateapplied" class="form-select form-select-sm" id="rateapplied" onchange="toggleLowerRate()">
+            <option value="Supply before due date" selected>Supply before due date</option>
+            <option value="Supply after due date">Supply after due date</option>
+            <option value="Lower rate applicable">Lower rate applicable</option>
+            <option value="Lower rate and LD comparison">Lower rate and LD comparison</option>
+          </select>
+          <small class="text-muted">Choose the applicable situation for this PO.</small>
+        </div>
+
+        <!-- LOWER RATE INPUTS (hidden until needed) -->
+        <div id="lower_rate_section" style="display:none; border-top: 1px dashed #e0b400; padding-top: 8px; margin-top: 6px;">
+          <div class="row">
+            <div class="col-md-4 mb-2">
+              <label class="form-label fw-semibold">Lower Basic Rate (₹/unit)</label>
+              <input class="form-control form-control-sm" type="number" step="0.01" name="lowerrate">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="form-label fw-semibold">Lower Freight (₹/unit)</label>
+              <input class="form-control form-control-sm" type="number" step="0.01" name="lowerfreight">
+            </div>
+            <div class="col-md-4 mb-2">
+              <label class="form-label fw-semibold">Lower Base Date</label>
+              <input class="form-control form-control-sm" type="date" name="lowerbasicdate">
+            </div>
+          </div>
+          <small class="text-muted">
+            Fill only if lower rate clause or LD comparison is applicable.
+          </small>
+        </div>
+
+      </div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="text-center mb-4">
+      <button class="btn btn-primary px-4 me-2" type="submit">
+        <i class="fa-solid fa-play me-1"></i>Calculate
+      </button>
+      <button class="btn btn-outline-secondary px-3" type="reset">
+        <i class="fa-solid fa-rotate-left me-1"></i>Reset
+      </button>
+    </div>
+
+  </form>
+</div>
+
+<script>
+function toggleRefixed() {
+  const cb = document.getElementById('chk_refixed');
+  const field = document.getElementById('refixed_dp');
+  if (cb.checked) {
+    field.style.display = 'block';
+  } else {
+    field.style.display = 'none';
+    field.value = '';
+  }
+}
+
+function toggleExtended() {
+  const cb = document.getElementById('chk_extended');
+  const field = document.getElementById('extended_dp');
+  if (cb.checked) {
+    field.style.display = 'block';
+  } else {
+    field.style.display = 'none';
+    field.value = '';
+  }
+}
+
+function toggleLowerRate() {
+  const sel = document.getElementById('rateapplied');
+  const sec = document.getElementById('lower_rate_section');
+  const val = sel.value;
+  if (val === 'Lower rate applicable' || val === 'Lower rate and LD comparison') {
+    sec.style.display = 'block';
+  } else {
+    sec.style.display = 'none';
+    document.querySelector('input[name="lowerrate"]').value = '';
+    document.querySelector('input[name="lowerfreight"]').value = '';
+    document.querySelector('input[name="lowerbasicdate"]').value = '';
+  }
+}
+</script>
+{% endblock %}
