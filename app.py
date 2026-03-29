@@ -1,7 +1,3 @@
-
-import os
-if SQLALCHEMY_DATABASE_URI.startswith("postgres://"):
-    SQLALCHEMY_DATABASE_URI = SQLALCHEMY_DATABASE_URI.replace("postgres://", "postgresql://", 1)
 from pvc1 import get_ieema_df, calculate_single_record_from_dict
 import pandas as pd
 from flask import Flask, render_template, request, redirect, url_for, flash
@@ -61,14 +57,14 @@ class PVCResult(db.Model):
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# IEEMA dataframe (loaded once)
-ieema_df = None
-
+# -------------------------
+# 4. LOAD DATA
+# -------------------------
 with app.app_context():
     ieema_df = get_ieema_df()
 
 # -------------------------
-# 4. ROUTES
+# 5. ROUTES
 # -------------------------
 @app.route('/login', methods=['GET', 'POST'])
 def login():
@@ -118,57 +114,30 @@ def calculate():
         'lowerbasicdate': request.form.get('lowerbasicdate') or '',
     }
 
-    # Map to pvc1.py expected keys
     one = {
         "acc_qty": data['quantity'],
         "basic_rate": data['basicrate'],
         "freight_rate_per_unit": data['freight'],
-
         "pvc_base_date": data['pvcbasedate'],
         "call_date": data['caldate'],
-
-        # DP dates used inside pvc1.py to derive:
-        # - scheduled_date for PVC contractual
-        # - LD base date for delay
         "orig_dp": data['origdp'],
         "refixeddp": data['refixeddp'],
         "extendeddp": data['extendeddp'],
-
         "sup_date": data['supdate'],
-
         "lower_rate": data['lowerrate'],
         "lower_freight": data['lowerfreight'],
         "lower_basic_date": data['lowerbasicdate'],
     }
 
-    global ieema_df
     result_row = calculate_single_record_from_dict(one, ieema_df)
-
-    # Scenario amounts (A2/B2/C1/D1) after LD where applicable
-    scenario_amounts = {
-        "A2": result_row.get("pvc_actual_less_ld_new"),
-        "B2": result_row.get("pvc_contractual_less_ld_new"),
-        "C1": result_row.get("lower_actual"),
-        "D1": result_row.get("lower_contractual"),
-    }
 
     result = {
         "data": {
             "pvcactual": result_row["pvc_actual"],
-            "pvccontractual": result_row["pvc_contractual"],
-            "lower_actual": result_row["lower_actual"],
-            "lower_contractual": result_row["lower_contractual"],
             "ldamtactual": result_row["ld_amt_actual"],
-            "ld_amt_contractual": result_row["ld_amt_contractual"],
             "fairprice": result_row["fair_price_new"],
             "selectedscenario": result_row["selected_scenario_new"],
-            "delay_days": result_row.get("delay_days"),
-            "ld_weeks": result_row.get("ld_weeks_new"),
-            "ld_rate_pct": result_row.get("ld_rate_pct_new"),
-            "ld_applicable": result_row.get("ld_applicable", True),
-        },
-        "scenario_details": result_row.get("scenario_details", []),
-        "scenario_amounts": scenario_amounts,
+        }
     }
 
     calc = PVCResult(
@@ -190,6 +159,7 @@ def calculate():
         fairprice=result["data"]["fairprice"],
         selectedscenario=result["data"]["selectedscenario"],
     )
+
     db.session.add(calc)
     db.session.commit()
 
@@ -202,9 +172,9 @@ def calculate():
     )
 
 # -------------------------
-# 5. INIT DB & MAIN
+# 6. INIT DB (IMPORTANT FIX)
 # -------------------------
-def init_db():
+with app.app_context():
     db.create_all()
     if not User.query.filter_by(username='admin').first():
         admin = User(
@@ -213,12 +183,3 @@ def init_db():
         )
         db.session.add(admin)
         db.session.commit()
-        print("Admin user created: admin / admin123")
-
-if __name__ == '__main__':
-    os.makedirs('templates', exist_ok=True)
-    with app.app_context():
-        init_db()
-        # reload IEEMA once DB/app context is ready
-        ieema_df = get_ieema_df()
-    
